@@ -7,7 +7,6 @@ from copy import deepcopy
 from typing import Dict, List, Optional,Tuple
 from util import batch_rate_mcp
 from collections.abc import Sequence, Iterator
-from loguru import logger
 import json
 import torch
 
@@ -755,7 +754,7 @@ class McpProblem(ORM):
         pass
 
     def __call__(self, completions, solution, problem_type, **kwargs):
-        logger.info(f"len(completions): {len(completions)}, len(solution): {len(solution)}, len(problem_type): {len(problem_type)}")
+        logger.info(f"McpProblem(ORM): len(completions): {len(completions)}, len(solution): {len(solution)}, len(problem_type): {len(problem_type)}")
         rewards = []
         mcp_answers = []
         mcp_solutions = []
