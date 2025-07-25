@@ -4,8 +4,10 @@ import re
 import textwrap
 from collections import Counter
 from copy import deepcopy
-from typing import Dict, List, Optional
-
+from typing import Dict, List, Optional,Tuple
+from util import batch_rate_mcp
+from collections.abc import Sequence, Iterator
+from loguru import logger
 import json
 import torch
 
@@ -702,6 +704,83 @@ class ToolUseCorrectnessReward(ORM):
         return rewards
 
 
+class TokenRepetitionPenalty(ORM):
+    """
+    Token-level repetition penalty using GPT-4o tokenizer (tiktoken).
+    Returns one scalar reward per completion
+    """
+    def __init__(
+        self,
+        tokenizer,
+        repetition_n_grams: int = 3,
+        repetition_max_penalty: float = -1.0,
+    ):
+        self.ngram_size = repetition_n_grams
+        self.max_penalty = repetition_max_penalty
+        self.tokenizer = tokenizer
+    @staticmethod
+    def ngrams(seq: Sequence[int], n: int) -> Iterator[Tuple[int, ...]]:
+        return (tuple(seq[i:i + n]) for i in range(len(seq) - n + 1))
+
+    def __call__(self, completions, **kwargs) -> List[float]:
+        rewards = []
+        for completion in completions:
+            if not completion:
+                rewards.append(0.0)
+                continue
+
+            tokens = self.tokenizer.encode(completion)
+            if len(tokens) < self.ngram_size:
+                rewards.append(0.0)
+                continue
+
+            seen = set()
+            total = 0
+            for ng in self.ngrams(tokens, self.ngram_size):
+                seen.add(ng)
+                total += 1
+
+            if total == 0:
+                rewards.append(0.0)
+                continue
+
+            # proportion of repeated ngrams
+            scaling = 1.0 - (len(seen) / total)
+            rewards.append(scaling * self.max_penalty)
+        return rewards
+
+
+class McpProblem(ORM):
+    def __init__(self):
+        pass
+
+    def __call__(self, completions, solution, problem_type, **kwargs):
+        logger.info(f"len(completions): {len(completions)}, len(solution): {len(solution)}, len(problem_type): {len(problem_type)}")
+        rewards = []
+        mcp_answers = []
+        mcp_solutions = []
+        mcp_indices = []
+        
+        # First collect all MCP problems
+        for idx, (comp, sol, pt) in enumerate(zip(completions, solution, problem_type)):
+            if pt != "mcp":
+                rewards.append(None)
+                continue
+                
+            answer = re.sub(r"<think>.*?</think>", "", comp, flags=re.DOTALL).strip()
+            mcp_answers.append(answer)
+            mcp_solutions.append(sol)
+            mcp_indices.append(idx)
+            rewards.append(None)  # placeholder
+            
+        # Process all MCP problems in batch
+        if mcp_answers:
+            batch_rewards = batch_rate_mcp(mcp_answers, mcp_solutions)
+            for idx, reward in zip(mcp_indices, batch_rewards):
+                rewards[idx] = reward
+                
+        return rewards
+
 orms['external_math_acc'] = MathAccuracy
 orms['external_math_format'] = MathFormat
 orms['external_countdown'] = CountdownORM
@@ -712,6 +791,9 @@ orms['external_code_reward_by_judge0'] = CodeRewardByJudge0
 orms['external_tooluse_format_reward'] = ToolUseFormatReward
 orms['external_tooluse_length_reward'] = ToolUseLengthReward
 orms['external_tooluse_correct_reward'] = ToolUseCorrectnessReward
+orms['external_token_repetition'] = TokenRepetitionPenalty
+orms['external_mcp_problem'] = McpProblem
+
 """
 TO CUSTOMIZE REWARD MODEL:
     Step 1: Define a Reward Class
