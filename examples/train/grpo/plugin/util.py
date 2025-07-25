@@ -35,7 +35,7 @@ def batch_rate_mcp(llm_response_list: list[str], ground_truth_list: list[str]) -
         model=McpScore,
         failed_model=failed_model,
         query=input_query,
-        llm=llm.qwen3_32b_think,
+        llm=llm.qwen3_32b_fp8_think,
         langfuse_user_id='batch_rate_mcp',
         langfuse_session_id=time.strftime("%Y%m%d_%H%M%S", time.localtime())
     )

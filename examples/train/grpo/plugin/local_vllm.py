@@ -12,6 +12,7 @@ class LocalLLM:
     _qwen3_14b_awq_think = None
     _qwen3_14b_awq_no_think = None
     _qwen3_32b_think = None
+    _qwen3_32b_fp8_think =None
 
     @property
     def qwen3_14b_awq_think(self)->BaseChatOpenAI:
@@ -49,6 +50,19 @@ class LocalLLM:
                 extra_body={"chat_template_kwargs": {"enable_thinking": True}}
             )
         return self._qwen3_32b_think
+
+    @property
+    def qwen3_32b_fp8_think(self)->BaseChatOpenAI:
+        if self._qwen3_32b_fp8_think is None:
+            self._qwen3_32b_fp8_think = ChatDeepSeek(
+                model="Qwen3-32B-FP8",
+                api_key=os.getenv("DASHSCOPE_API_KEY"),
+                api_base=os.environ.get("QWEN3_32B_BASE_URL", ""),
+                max_tokens=4000,
+                streaming=True,
+                extra_body={"chat_template_kwargs": {"enable_thinking": True}}
+            )
+        return self._qwen3_32b_fp8_think
 
 if __name__ == '__main__':
     llm = LocalLLM()
