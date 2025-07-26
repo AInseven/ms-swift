@@ -733,19 +733,22 @@ class TokenRepetitionPenalty(ORM):
                 rewards.append(0.0)
                 continue
 
-            seen = set()
-            total = 0
-            for ng in self.ngrams(tokens, self.ngram_size):
-                seen.add(ng)
-                total += 1
-
+            # Generate n-grams and count occurrences
+            ngram_counts = Counter(self.ngrams(tokens, self.ngram_size))
+            total = len(ngram_counts)
+            
             if total == 0:
                 rewards.append(0.0)
                 continue
 
-            # proportion of repeated ngrams
-            scaling = 1.0 - (len(seen) / total)
-            rewards.append(scaling * self.max_penalty)
+            # Count repeated ngrams (occurring more than once)
+            repeated = sum(1 for count in ngram_counts.values() if count > 1)
+            if repeated>0.4:
+                repetition_rate = repeated / total
+            else:
+                repetition_rate = 0.0
+            
+            rewards.append(repetition_rate * self.max_penalty)
         return rewards
 
 
@@ -754,11 +757,12 @@ class McpProblem(ORM):
         pass
 
     def __call__(self, completions, solution, problem_type, **kwargs):
-        logger.info(f"McpProblem(ORM): len(completions): {len(completions)}, len(solution): {len(solution)}, len(problem_type): {len(problem_type)}")
+        logger.debug(f"McpProblem(ORM): len(completions): {len(completions)}, len(solution): {len(solution)}, len(problem_type): {len(problem_type)}")
         rewards = []
         mcp_answers = []
         mcp_solutions = []
         mcp_indices = []
+        logger.debug(f"{completions[0]}\n {solution[0]}\n {problem_type[0]}")
         
         # First collect all MCP problems
         for idx, (comp, sol, pt) in enumerate(zip(completions, solution, problem_type)):
@@ -773,6 +777,7 @@ class McpProblem(ORM):
             rewards.append(None)  # placeholder
             
         # Process all MCP problems in batch
+        logger.debug(f"McpProblem(ORM): len(mcp_answers): {len(mcp_answers)}, len(mcp_solutions): {len(mcp_solutions)}")
         if mcp_answers:
             batch_rewards = batch_rate_mcp(mcp_answers, mcp_solutions)
             for idx, reward in zip(mcp_indices, batch_rewards):

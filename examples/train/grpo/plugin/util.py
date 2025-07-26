@@ -3,6 +3,9 @@ from typing import Union, Literal, List
 from structured_llm_output import prompt_parsing
 import time
 from local_vllm import LocalLLM
+from swift.utils import get_logger
+
+logger = get_logger()
 
 llm = LocalLLM()
 
@@ -30,6 +33,7 @@ def batch_extract_answer(llm_response_list: list[str]) -> Union[
 
 def batch_rate_mcp(llm_response_list: list[str], ground_truth_list: list[str]) -> List[float]:
     input_query = [mcp_rating_prompt.format(correct_ans=gt, answer=res) for gt, res in zip(ground_truth_list, llm_response_list)]
+    logger.debug(f'len input_query: {len(input_query)}')
     failed_model = McpScore(score=0)
     res = prompt_parsing(
         model=McpScore,
